@@ -1,0 +1,430 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  READER
+  AUTHOR
+  ADMIN
+}
+
+enum PostStatus {
+  DRAFT
+  REVIEW
+  PUBLISHED
+  ARCHIVED
+}
+
+enum DocumentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ModerationStatus {
+  APPROVED
+  FLAGGED
+  REJECTED
+  PENDING_REVIEW
+}
+
+model User {
+  id            String          @id @default(uuid())
+  email         String          @unique
+  passwordHash  String
+  role          Role            @default(READER)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  profile       Profile?
+  sessions      Session[]
+  posts         Post[]
+  comments      Comment[]
+  commentLikes  CommentLike[]
+  postLikes     PostLike[]
+  bookmarks     Bookmark[]
+  
+  followers     Follow[]        @relation("FollowedUser")
+  following     Follow[]        @relation("FollowingUser")
+
+  readingHistories ReadingHistory[]
+  notifications    Notification[]
+  documents        Document[]
+  conversations    Conversation[]
+  aiGenerations    AiGeneration[]
+  analyticsEvents  AnalyticsEvent[]
+
+  @@map("users")
+}
+
+model Profile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  username    String   @unique
+  avatar      String?
+  bio         String?
+  website     String?
+  twitter     String?
+  github      String?
+  linkedin    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("profiles")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token        String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@map("sessions")
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  posts       Post[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("categories")
+}
+
+model Tag {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  slug      String    @unique
+  posts     PostTag[]
+  createdAt DateTime  @default(now())
+
+  @@map("tags")
+}
+
+model Post {
+  id             String         @id @default(uuid())
+  slug           String         @unique
+  title          String
+  subtitle       String?
+  content        String
+  excerpt        String?
+  coverImage     String?
+  status         PostStatus     @default(DRAFT)
+  publishedAt    DateTime?
+  scheduledFor   DateTime?
+  readingTimeMin Int            @default(1)
+  viewsCount     Int            @default(0)
+  
+  // SEO Metadata
+  seoTitle       String?
+  seoDescription String?
+  seoKeywords    String?
+
+  authorId       String
+  author         User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  categoryId     String?
+  category       Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  tags           PostTag[]
+  versions       PostVersion[]
+  comments       Comment[]
+  likes          PostLike[]
+  bookmarks      Bookmark[]
+  readingHistories ReadingHistory[]
+  documentChunks DocumentChunk[]
+  embeddings     PostEmbedding[]
+
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([status, publishedAt])
+  @@map("posts")
+}
+
+model PostTag {
+  postId String
+  tagId  String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
+  @@map("post_tags")
+}
+
+model PostVersion {
+  id        String   @id @default(uuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  title     String
+  content   String
+  version   Int
+  createdAt DateTime @default(now())
+
+  @@map("post_versions")
+}
+
+model Comment {
+  id          String        @id @default(uuid())
+  content     String
+  postId      String
+  post        Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  parentId    String?
+  parent      Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies     Comment[]     @relation("CommentReplies")
+
+  likes       CommentLike[]
+  moderation  ModerationResult?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@map("comments")
+}
+
+model CommentLike {
+  commentId String
+  userId    String
+  comment   Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([commentId, userId])
+  @@map("comment_likes")
+}
+
+model PostLike {
+  postId    String
+  userId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([postId, userId])
+  @@map("post_likes")
+}
+
+model Bookmark {
+  postId    String
+  userId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([postId, userId])
+  @@map("bookmarks")
+}
+
+model Follow {
+  followerId  String
+  followingId String
+  follower    User     @relation("FollowingUser", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("FollowedUser", fields: [followingId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@id([followerId, followingId])
+  @@map("follows")
+}
+
+model ReadingHistory {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  readAt    DateTime @default(now())
+  durationSec Int    @default(0)
+
+  @@index([userId, readAt])
+  @@map("reading_history")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // COMMENT_REPLY, LIKE, NEW_FOLLOWER, POST_PUBLISHED, MODERATION, AI_COMPLETED
+  title     String
+  message   String
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("notifications")
+}
+
+model Media {
+  id        String   @id @default(uuid())
+  url       String
+  filename  String
+  mimeType  String
+  sizeBytes Int
+  createdAt DateTime @default(now())
+
+  @@map("media")
+}
+
+model Document {
+  id          String         @id @default(uuid())
+  title       String
+  fileUrl     String
+  fileType    String
+  sizeBytes   Int
+  status      DocumentStatus @default(PENDING)
+  userId      String
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chunks      DocumentChunk[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@map("documents")
+}
+
+model DocumentChunk {
+  id         String   @id @default(uuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  postId     String?
+  post       Post?    @relation(fields: [postId], references: [id], onDelete: SetNull)
+  chunkIndex Int
+  content    String
+  vectorJson String?  // Stringified embedding array
+  createdAt  DateTime @default(now())
+
+  @@index([documentId, chunkIndex])
+  @@map("document_chunks")
+}
+
+model PostEmbedding {
+  id         String   @id @default(uuid())
+  postId     String
+  post       Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  chunkIndex Int      @default(0)
+  content    String
+  vectorJson String   // Stringified vector array
+  createdAt  DateTime @default(now())
+
+  @@index([postId])
+  @@map("post_embeddings")
+}
+
+model Conversation {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String    @default("AI Assistant Chat")
+  messages  Message[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String       // user | assistant | system | tool
+  content        String
+  toolCalls      AiToolCall[]
+  createdAt      DateTime     @default(now())
+
+  @@map("messages")
+}
+
+model AiGeneration {
+  id          String   @id @default(uuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action      String   // GENERATE_TITLE, OUTLINE, SUMMARY, SEO, BLOG_WORKFLOW, ASK_ARTICLE, RESEARCH
+  provider    String   // openai | google | anthropic | mock
+  model       String
+  prompt      String
+  response    String
+  tokensIn    Int      @default(0)
+  tokensOut   Int      @default(0)
+  latencyMs   Int      @default(0)
+  costUSD     Float    @default(0.0)
+  cached      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  toolCalls   AiToolCall[]
+
+  @@map("ai_generations")
+}
+
+model AiToolCall {
+  id             String        @id @default(uuid())
+  aiGenerationId String?
+  aiGeneration   AiGeneration? @relation(fields: [aiGenerationId], references: [id], onDelete: Cascade)
+  messageId      String?
+  message        Message?      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  toolName       String
+  arguments      String        // JSON string
+  result         String        // JSON string
+  status         String        @default("SUCCESS")
+  createdAt      DateTime      @default(now())
+
+  @@map("ai_tool_calls")
+}
+
+model AiEvaluation {
+  id                 String   @id @default(uuid())
+  testName           String
+  retrievalRelevance Float
+  answerRelevance    Float
+  groundedness       Float
+  hallucinationRate  Float
+  toolCorrectness    Float
+  latencyMs          Int
+  detailsJson        String
+  createdAt          DateTime @default(now())
+
+  @@map("ai_evaluations")
+}
+
+model ModerationResult {
+  id        String           @id @default(uuid())
+  commentId String?          @unique
+  comment   Comment?         @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  targetType String          // POST, COMMENT, DOCUMENT
+  targetId  String
+  status    ModerationStatus @default(PENDING_REVIEW)
+  flagged   Boolean          @default(false)
+  categoriesJson String      // JSON array
+  score     Float            @default(0.0)
+  reason    String?
+  createdAt DateTime         @default(now())
+
+  @@map("moderation_results")
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  event     String   // VIEW_POST, LIKE_POST, SEARCH, AI_GENERATE, DOWNLOAD_DOC
+  metadata  String?  // JSON string
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([event, createdAt])
+  @@map("analytics_events")
+}
