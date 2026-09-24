@@ -7,36 +7,46 @@ import { getPersonalizedRecommendations } from '@/lib/recommendations';
 export const revalidate = 0; // Fresh server fetch
 
 export default async function HomePage() {
-  // Fetch Featured & Published Articles
-  const featuredPost = await db.post.findFirst({
-    where: { status: 'PUBLISHED' },
-    orderBy: { viewsCount: 'desc' },
-    include: {
-      category: true,
-      author: { select: { profile: { select: { name: true, username: true } } } },
-    },
-  });
+  let featuredPost = null;
+  let latestPosts: any[] = [];
+  let categories: any[] = [];
+  let authors: any[] = [];
+  let recommendations: any[] = [];
 
-  const latestPosts = await db.post.findMany({
-    where: { status: 'PUBLISHED' },
-    orderBy: { createdAt: 'desc' },
-    take: 6,
-    include: {
-      category: true,
-      author: { select: { profile: { select: { name: true, username: true } } } },
-    },
-  });
+  try {
+    // Fetch Featured & Published Articles
+    featuredPost = await db.post.findFirst({
+      where: { status: 'PUBLISHED' },
+      orderBy: { viewsCount: 'desc' },
+      include: {
+        category: true,
+        author: { select: { profile: { select: { name: true, username: true } } } },
+      },
+    });
 
-  const categories = await db.category.findMany({
-    take: 6,
-    include: { _count: { select: { posts: true } } },
-  });
+    latestPosts = await db.post.findMany({
+      where: { status: 'PUBLISHED' },
+      orderBy: { createdAt: 'desc' },
+      take: 6,
+      include: {
+        category: true,
+        author: { select: { profile: { select: { name: true, username: true } } } },
+      },
+    });
 
-  const authors = await db.profile.findMany({
-    take: 4,
-  });
+    categories = await db.category.findMany({
+      take: 6,
+      include: { _count: { select: { posts: true } } },
+    });
 
-  const recommendations = await getPersonalizedRecommendations(undefined, 3);
+    authors = await db.profile.findMany({
+      take: 4,
+    });
+
+    recommendations = await getPersonalizedRecommendations(undefined, 3);
+  } catch (err) {
+    console.error('HomePage database query error:', err);
+  }
 
   return (
     <div className="space-y-16 pb-12">

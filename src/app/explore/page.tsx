@@ -14,16 +14,23 @@ export default async function ExplorePage({
   if (category) where.category = { slug: category };
   if (tag) where.tags = { some: { tag: { slug: tag } } };
 
-  const posts = await db.post.findMany({
-    where,
-    orderBy: sort === 'popular' ? { viewsCount: 'desc' } : { createdAt: 'desc' },
-    include: {
-      category: true,
-      author: { select: { profile: { select: { name: true, username: true } } } },
-    },
-  });
+  let posts: any[] = [];
+  let categories: any[] = [];
 
-  const categories = await db.category.findMany();
+  try {
+    posts = await db.post.findMany({
+      where,
+      orderBy: sort === 'popular' ? { viewsCount: 'desc' } : { createdAt: 'desc' },
+      include: {
+        category: true,
+        author: { select: { profile: { select: { name: true, username: true } } } },
+      },
+    });
+
+    categories = await db.category.findMany();
+  } catch (err) {
+    console.error('ExplorePage database query error:', err);
+  }
 
   return (
     <div className="container mx-auto px-4 py-10 space-y-8">

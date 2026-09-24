@@ -9,38 +9,46 @@ import { CommentsSection } from '@/components/comments-section';
 export const revalidate = 0;
 
 export default async function ArticlePage({ params }: { params: { slug: string } }) {
-  const post = await db.post.findFirst({
-    where: { slug: params.slug },
-    include: {
-      category: true,
-      tags: { include: { tag: true } },
-      author: { select: { id: true, profile: true } },
-      comments: {
-        where: { parentId: null },
-        include: {
-          author: { select: { profile: { select: { name: true, username: true, avatar: true } } } },
-          replies: {
-            include: {
-              author: { select: { profile: { select: { name: true, username: true, avatar: true } } } },
+  let post = null;
+
+  try {
+    post = await db.post.findFirst({
+      where: { slug: params.slug },
+      include: {
+        category: true,
+        tags: { include: { tag: true } },
+        author: { select: { id: true, profile: true } },
+        comments: {
+          where: { parentId: null },
+          include: {
+            author: { select: { profile: { select: { name: true, username: true, avatar: true } } } },
+            replies: {
+              include: {
+                author: { select: { profile: { select: { name: true, username: true, avatar: true } } } },
+              },
             },
+            moderation: true,
           },
-          moderation: true,
+          orderBy: { createdAt: 'desc' },
         },
-        orderBy: { createdAt: 'desc' },
+        _count: { select: { likes: true, bookmarks: true } },
       },
-      _count: { select: { likes: true, bookmarks: true } },
-    },
-  });
+    });
+
+    if (post) {
+      // Increment view count asynchronously
+      await db.post.update({
+        where: { id: post.id },
+        data: { viewsCount: { increment: 1 } },
+      }).catch(() => {});
+    }
+  } catch (err) {
+    console.error('ArticlePage database query error:', err);
+  }
 
   if (!post) {
     notFound();
   }
-
-  // Increment view count asynchronously
-  await db.post.update({
-    where: { id: post.id },
-    data: { viewsCount: { increment: 1 } },
-  });
 
   return (
     <article className="container mx-auto px-4 py-10 max-w-4xl space-y-10">
