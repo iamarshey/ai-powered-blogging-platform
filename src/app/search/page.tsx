@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Search, Sparkles, Filter } from 'lucide-react';
 import { ArticleCard } from '@/components/article-card';
 
-export default function SearchPage() {
+function SearchContent() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
   const [query, setQuery] = useState(initialQuery);
@@ -41,12 +41,7 @@ export default function SearchPage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-10 max-w-4xl space-y-8">
-      <div>
-        <h1 className="text-3xl font-extrabold tracking-tight">Search Knowledge Base</h1>
-        <p className="text-sm text-muted-foreground mt-1">Hybrid Semantic Search combines full-text keywords with pgvector semantic similarity.</p>
-      </div>
-
+    <div className="space-y-8">
       {/* Search Input Box */}
       <form onSubmit={handleSubmit} className="flex gap-2">
         <div className="relative flex-1">
@@ -124,6 +119,21 @@ export default function SearchPage() {
           No matching articles found. Try adjusting your query or switching to Hybrid Vector Search mode.
         </div>
       )}
+    </div>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <div className="container mx-auto px-4 py-10 max-w-4xl space-y-8">
+      <div>
+        <h1 className="text-3xl font-extrabold tracking-tight">Search Knowledge Base</h1>
+        <p className="text-sm text-muted-foreground mt-1">Hybrid Semantic Search combines full-text keywords with pgvector semantic similarity.</p>
+      </div>
+
+      <Suspense fallback={<div className="py-12 text-center text-sm text-muted-foreground">Loading search engine...</div>}>
+        <SearchContent />
+      </Suspense>
     </div>
   );
 }

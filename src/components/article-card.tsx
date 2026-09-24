@@ -1,17 +1,19 @@
 'use client';
 
 import Link from 'next/link';
-import { Eye, Heart, Clock, Bookmark, Sparkles } from 'lucide-react';
+import { Eye, Clock, Bookmark, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 
 export interface ArticleCardProps {
   id: string;
   title: string;
   slug: string;
-  excerpt: string;
+  excerpt?: string | null;
+  content?: string;
   coverImage?: string | null;
-  category?: { name: string; slug: string } | null;
-  author?: { profile?: { name: string; username: string; avatar?: string | null } } | null;
+  category?: { name: string; slug?: string } | string | null;
+  author?: { profile?: { name: string; username?: string; avatar?: string | null } | null } | null;
+  authorName?: string;
   publishedAt?: string | Date | null;
   readingTimeMin?: number;
   viewsCount?: number;
@@ -24,13 +26,13 @@ export function ArticleCard({
   title,
   slug,
   excerpt,
+  content,
   coverImage,
   category,
   author,
-  publishedAt,
+  authorName,
   readingTimeMin = 3,
   viewsCount = 0,
-  likesCount = 0,
   matchReason,
 }: ArticleCardProps) {
   const [bookmarked, setBookmarked] = useState(false);
@@ -41,10 +43,13 @@ export function ArticleCard({
     await fetch(`/api/posts/${id}/bookmark`, { method: 'POST' });
   };
 
+  const displayExcerpt = excerpt || content?.slice(0, 160) || 'No excerpt available...';
+  const categoryName = typeof category === 'string' ? category : category?.name;
+  const displayName = author?.profile?.name || authorName || 'Author';
+
   return (
     <div className="group relative flex flex-col justify-between rounded-xl border bg-card p-5 shadow-sm transition hover:shadow-md hover:border-purple-500/30">
       <div>
-        {/* Cover Image fallback */}
         <div className="relative h-44 w-full overflow-hidden rounded-lg bg-gradient-to-br from-purple-900/20 to-slate-900/40 border mb-4">
           {coverImage ? (
             <img src={coverImage} alt={title} className="h-full w-full object-cover transition group-hover:scale-105" />
@@ -53,9 +58,9 @@ export function ArticleCard({
               <Sparkles className="h-10 w-10" />
             </div>
           )}
-          {category && (
+          {categoryName && (
             <span className="absolute top-3 left-3 rounded-full bg-background/90 backdrop-blur px-2.5 py-0.5 text-xs font-semibold text-purple-600 dark:text-purple-400 border shadow-sm">
-              {category.name}
+              {categoryName}
             </span>
           )}
         </div>
@@ -74,16 +79,16 @@ export function ArticleCard({
         </Link>
 
         <p className="mt-2 text-xs text-muted-foreground line-clamp-3 leading-relaxed">
-          {excerpt}
+          {displayExcerpt}
         </p>
       </div>
 
       <div className="mt-5 flex items-center justify-between border-t pt-4 text-xs text-muted-foreground">
         <div className="flex items-center gap-2">
           <div className="h-6 w-6 rounded-full bg-purple-600/20 text-purple-600 flex items-center justify-center font-bold text-[10px]">
-            {author?.profile?.name?.[0] || 'A'}
+            {displayName[0] || 'A'}
           </div>
-          <span className="font-medium text-foreground">{author?.profile?.name || 'Author'}</span>
+          <span className="font-medium text-foreground">{displayName}</span>
         </div>
 
         <div className="flex items-center gap-3">
